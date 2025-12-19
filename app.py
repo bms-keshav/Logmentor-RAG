@@ -9,10 +9,10 @@ import os
 import datetime
 import pandas as pd
 from utils import structure_logs, chunk_structured_logs
-from langchain.docstore.document import Document
-from langchain.vectorstores import Chroma
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.chains import RetrievalQA
+from langchain_core.documents import Document
+from langchain_community.vectorstores import Chroma
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain.chains.retrieval_qa.base import RetrievalQA
 from langchain_groq import ChatGroq
 import logging
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 # Load API key
 load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_API_KEY_BACKUP = os.getenv("GROQ_API_KEY_BACKUP")
 
 # Allow model to be configured via .env (so you can switch when a model is decommissioned)
 # Default updated per Groq deprecations: https://console.groq.com/docs/deprecations
@@ -91,32 +92,54 @@ def validate_environment():
 validate_environment()
 
 
-# Retry logic for LLM API calls
-@retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=4, max=10),
-    retry=retry_if_exception_type(Exception),
-    reraise=True
-)
-def safe_llm_invoke(llm, prompt):
+# LLM API call with automatic backup key fallback
+def safe_llm_invoke(prompt, use_backup=False):
     """
-    Call LLM with automatic retry logic.
-    Retries up to 3 times with exponential backoff if API fails.
+    Call LLM with automatic API key fallback on rate limits.
+    Tries primary key first, then backup key if rate limit hit.
+    Implements manual retry with exponential backoff.
     """
-    try:
-        logger.info("Calling LLM API...")
-        result = llm.invoke(prompt)
-        logger.info("LLM API call successful")
-        return result
-    except Exception as e:
-        logger.error(f"LLM API call failed: {str(e)}")
-        raise
+    max_attempts = 3
+    
+    for attempt in range(max_attempts):
+        try:
+            # Choose which key to use
+            if use_backup and GROQ_API_KEY_BACKUP:
+                logger.info(f"Attempt {attempt + 1}: Using backup API key...")
+                current_llm = ChatGroq(groq_api_key=GROQ_API_KEY_BACKUP, model_name=GROQ_MODEL)
+            else:
+                logger.info(f"Attempt {attempt + 1}: Using primary API key...")
+                current_llm = ChatGroq(groq_api_key=GROQ_API_KEY, model_name=GROQ_MODEL)
+            
+            result = current_llm.invoke(prompt)
+            logger.info("✅ LLM API call successful")
+            return result
+            
+        except Exception as e:
+            error_msg = str(e)
+            is_rate_limit = "rate limit" in error_msg.lower() or "429" in error_msg
+            
+            # If rate limit and haven't tried backup yet, try backup immediately
+            if is_rate_limit and not use_backup and GROQ_API_KEY_BACKUP:
+                logger.warning(f"⚠️ Rate limit on primary key, switching to backup...")
+                return safe_llm_invoke(prompt, use_backup=True)
+            
+            # If this was the last attempt, raise the error
+            if attempt == max_attempts - 1:
+                logger.error(f"❌ All attempts failed: {error_msg}")
+                raise
+            
+            # Exponential backoff before retry
+            wait_time = min(4 * (2 ** attempt), 10)
+            logger.warning(f"Attempt {attempt + 1} failed, retrying in {wait_time}s...")
+            time.sleep(wait_time)
 
 
-def analyze_chunk(chunk_id, chunk, llm):
+def analyze_chunk(chunk_id, chunk):
     """
     Analyze a single chunk (designed to run in thread pool).
     Returns dict with chunk_id, analysis, and status.
+    Uses safe_llm_invoke with automatic API key fallback.
     """
     # chunk is already a formatted string from chunk_structured_logs
     prompt = f"""
@@ -133,7 +156,7 @@ Provide:
 """
     
     try:
-        result = safe_llm_invoke(llm, prompt)
+        result = safe_llm_invoke(prompt)
         logger.info(f"✅ Chunk {chunk_id} analyzed successfully")
         return {
             "chunk_id": chunk_id,
@@ -142,23 +165,22 @@ Provide:
         }
     except Exception as e:
         error_msg = str(e)
-        logger.error(f"❌ Chunk {chunk_id} failed after 3 retries: {error_msg}")
+        logger.error(f"❌ Chunk {chunk_id} failed: {error_msg}")
         return {
             "chunk_id": chunk_id,
-            "analysis": f"⚠️ Analysis failed after 3 attempts.\nError: {error_msg[:200]}...",
+            "analysis": f"⚠️ Analysis failed after retries with both API keys.\nError: {error_msg[:200]}...",
             "status": "failed"
         }
 
 
-def analyze_chunks_parallel(chunks, llm, max_workers=3, progress_callback=None):
+def analyze_chunks_parallel(chunks, max_workers=1, progress_callback=None):
     """
     Analyze chunks in parallel using ThreadPoolExecutor.
     Returns list of results and statistics.
     
     Args:
         chunks: List of log chunks to analyze
-        llm: LLM instance
-        max_workers: Number of parallel workers
+        max_workers: Number of parallel workers (default 1 to avoid rate limits)
         progress_callback: Optional callback(completed, total) for progress updates
     """
     results = []
@@ -166,9 +188,9 @@ def analyze_chunks_parallel(chunks, llm, max_workers=3, progress_callback=None):
     completed = 0
     
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Submit all tasks
+        # Submit all tasks (no llm parameter needed)
         futures = {
-            executor.submit(analyze_chunk, i + 1, chunk, llm): i
+            executor.submit(analyze_chunk, i + 1, chunk): i
             for i, chunk in enumerate(chunks)
         }
         
@@ -215,11 +237,25 @@ with st.sidebar:
     4. Generate Summary or Ask Questions
     """)
     
+    st.warning("""
+    ⚠️ **Demo Mode:**  
+    - Don't upload sensitive logs  
+    - Files analyzed, not stored  
+    - Logs sent to Groq API
+    """)
+    
+    st.info("""
+    💡 **Free Tier Limits:**  
+    - Daily quota: ~14,400 requests  
+    - Automatic fallback to backup key if limit hit  
+    - Sequential processing avoids most limits
+    """)
+    
     with st.expander("⚙️ Configuration"):
         gpu_status = "🚀 GPU Enabled" if device == "cuda" else "💻 CPU Mode (3x faster model)"
         st.code(f"""
 Model: {GROQ_MODEL}
-API Key: {GROQ_API_KEY[:8]}...{GROQ_API_KEY[-4:]}
+API Key: ●●●●●●●●●●●● (configured)
 Max File Size: {MAX_FILE_SIZE_MB}MB
 Embedding: paraphrase-MiniLM-L3-v2 (optimized for speed)
 Device: {gpu_status}
@@ -325,6 +361,44 @@ with tab1:
             status.update(label="✅ Processing complete!", state="complete")
 
         st.success(f"✅ Ready to analyze: {len(structured_logs)} log entries in {len(st.session_state.chunks)} chunks")
+        
+        # Error Analytics - Visual breakdown of log levels
+        st.subheader("📊 Log Level Distribution")
+        
+        # Count log levels
+        level_counts = {}
+        for log in structured_logs:
+            level = log.get('level', 'UNKNOWN')
+            level_counts[level] = level_counts.get(level, 0) + 1
+        
+        # Create DataFrame for visualization
+        if level_counts:
+            df_levels = pd.DataFrame(list(level_counts.items()), columns=['Level', 'Count'])
+            df_levels = df_levels.sort_values('Count', ascending=False)
+            
+            # Display metrics in columns
+            cols = st.columns(len(level_counts))
+            for idx, (level, count) in enumerate(level_counts.items()):
+                with cols[idx]:
+                    # Color code based on severity
+                    if level in ['ERROR', 'CRITICAL']:
+                        delta_color = "inverse"
+                    elif level == 'WARNING':
+                        delta_color = "off"
+                    else:
+                        delta_color = "normal"
+                    
+                    percentage = (count / len(structured_logs)) * 100
+                    st.metric(
+                        label=f"{level}",
+                        value=f"{count:,}",
+                        delta=f"{percentage:.1f}%"
+                    )
+            
+            # Bar chart
+            st.bar_chart(df_levels.set_index('Level'))
+        
+        st.markdown("---")
 
         # Run AI Chunk Analysis
         if st.button("🚀 Run AI Chunk Analysis"):
@@ -343,13 +417,13 @@ with tab1:
                 progress_bar.progress(progress)
                 status_text.text(f"⏳ Analyzing: {completed}/{total} chunks complete ({progress*100:.0f}%)")
             
-            status_text.text(f"Starting parallel analysis of {total_chunks} chunks...")
+            status_text.text(f"Starting analysis of {total_chunks} chunks...")
             
-            # Run parallel analysis with progress updates
+            # Run analysis with progress updates
+            # Using 1 worker to respect API rate limits (free tier)
             results, successful_chunks, failed_chunks = analyze_chunks_parallel(
-                st.session_state.chunks, 
-                llm,
-                max_workers=3,  # Process 3 chunks at a time
+                st.session_state.chunks,
+                max_workers=1,  # Sequential processing to avoid rate limits
                 progress_callback=update_progress
             )
             
@@ -411,7 +485,7 @@ with tab3:
         combined = "\n\n".join([res["analysis"] for res in st.session_state.all_chunk_insights])
         final_prompt = f"Summarize all these chunk-wise log analyses:\n{combined}"
         try:
-            final_result = llm.invoke(final_prompt)
+            final_result = safe_llm_invoke(final_prompt)
             summary_text = final_result.content
         except Exception as e:
             st.error(f"LLM error while creating final summary: {e}\nCheck GROQ_MODEL in your .env and Groq deprecation docs.")
@@ -481,7 +555,13 @@ with tab4:
         if st.session_state.vectorstore is None:
             with st.spinner("📦 Embedding and indexing chunks (one-time setup)..."):
                 documents = [Document(page_content=chunk) for chunk in st.session_state.chunks]
-                st.session_state.vectorstore = Chroma.from_documents(documents, embedding)
+                # Use persistent storage for faster reloads
+                persist_directory = "chroma_logs"
+                st.session_state.vectorstore = Chroma.from_documents(
+                    documents, 
+                    embedding,
+                    persist_directory=persist_directory
+                )
                 st.success("✅ Vector database created and cached!")
         else:
             st.info("💾 Using cached vector database (fast!)")
@@ -495,8 +575,20 @@ with tab4:
                 try:
                     response = qa_chain.run(user_query)
                 except Exception as e:
-                    st.error(f"Error during retrieval/LLM call: {e}\nIf this mentions a decommissioned model, update GROQ_MODEL in .env.")
-                    response = None
+                    error_msg = str(e)
+                    # Try backup key if rate limit hit
+                    if ("rate limit" in error_msg.lower() or "429" in error_msg) and GROQ_API_KEY_BACKUP:
+                        st.info("Primary key hit rate limit, trying backup key...")
+                        try:
+                            backup_llm = ChatGroq(groq_api_key=GROQ_API_KEY_BACKUP, model_name=GROQ_MODEL)
+                            backup_qa_chain = RetrievalQA.from_chain_type(llm=backup_llm, retriever=retriever)
+                            response = backup_qa_chain.run(user_query)
+                        except Exception as backup_error:
+                            st.error(f"Both API keys exhausted: {backup_error}")
+                            response = None
+                    else:
+                        st.error(f"Error during retrieval/LLM call: {e}\nIf this mentions a decommissioned model, update GROQ_MODEL in .env.")
+                        response = None
 
                 if response:
                     st.markdown("🧠 **Answer**")

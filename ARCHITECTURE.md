@@ -16,7 +16,7 @@ flowchart LR
   LP --> CH[Chunking]
   CH --> DOCS[LangChain Documents]
 
-  DOCS -->|embed| EMB[HuggingFace Embeddings\n(all-MiniLM-L6-v2)]
+  DOCS -->|embed| EMB[HuggingFace Embeddings\n(paraphrase-MiniLM-L3-v2)]
   EMB -->|vectors| VS[(ChromaDB / SQLite)]
 
   %% Chunk analysis path
@@ -45,7 +45,7 @@ flowchart TB
   end
 
   subgraph Vector Pipeline
-    EMB[HuggingFace Embeddings\n(all-MiniLM-L6-v2)]
+    EMB[HuggingFace Embeddings\n(paraphrase-MiniLM-L3-v2)]
     VS[(ChromaDB / SQLite)]
   end
 

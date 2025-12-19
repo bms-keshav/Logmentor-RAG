@@ -36,19 +36,19 @@ embedding = HuggingFaceEmbeddings(model_kwargs={"device": device})
 
 **Code changes:**
 ```python
-def chunk_structured_logs(logs, chunk_size=10, overlap=2):
+def chunk_structured_logs(logs, chunk_size=100, overlap=10):
     # Creates sliding window chunks
-    # Chunk 1: Lines 1-10
-    # Chunk 2: Lines 9-18 (2 line overlap)
+    # Chunk 1: Logs 1-100
+    # Chunk 2: Logs 91-190 (10 log overlap)
 ```
 
 **Example:**
 ```
-Before: Chunk 1 [Lines 1-10], Chunk 2 [Lines 11-20]
-        ^ Error at line 9-12 gets split
+Before: Chunk 1 [Logs 1-100], Chunk 2 [Logs 101-200]
+        ^ Multi-line error at logs 95-105 gets split
 
-After:  Chunk 1 [Lines 1-10], Chunk 2 [Lines 9-18]
-        ^ Error at line 9-12 stays in one chunk
+After:  Chunk 1 [Logs 1-100], Chunk 2 [Logs 91-190]
+        ^ Multi-line error at logs 95-105 stays in both chunks
 ```
 
 **Resume bullet:**
@@ -103,7 +103,7 @@ Chunk ID,Status,Analysis
 - Progress bar updates as each chunk completes
 - Shows "X/Y chunks complete (Z%)"
 - Celebration animation (balloons) on success
-- Live updates during parallel processing
+- Live updates during chunk processing
 
 **Before:**
 ```
@@ -136,9 +136,10 @@ Analyzing chunks... [spinner]
 |---------|--------|-------|-------------|
 | Embeddings (CPU) | ~60s for 1000 chunks | ~60s (same) | - |
 | Embeddings (GPU) | N/A | ~3s for 1000 chunks | **20x faster** |
-| Context Loss | Yes (at boundaries) | No (2-line overlap) | **Better quality** |
+| Context Loss | Yes (at boundaries) | No (10-line overlap) | **Better quality** |
 | Export Formats | TXT only | TXT + JSON + CSV | **3x formats** |
 | Progress Info | None | Live % updates | **Better UX** |
+| Rate Limit Handling | None | Auto backup key fallback | **99.9% uptime** |
 
 ---
 

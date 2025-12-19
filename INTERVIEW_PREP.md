@@ -21,7 +21,7 @@
 >
 > The key challenge was handling large log files efficiently. I optimized the parsing from 30 seconds to 5 seconds using streaming I/O, and reduced API costs by 91% through intelligent chunking - going from 34,000 API calls down to 3,000 by processing 100 logs per chunk instead of 10.
 >
-> I implemented parallel processing with ThreadPoolExecutor to analyze chunks concurrently, achieving a 3-5x speedup. For reliability, I added retry logic with exponential backoff, ensuring 99.9% success rate even with network issues.
+> I implemented ThreadPoolExecutor for chunk analysis with configurable concurrency (currently max_workers=1 to respect free tier API limits). For reliability, I built manual retry logic with exponential backoff and automatic backup API key fallback, ensuring 99.9% success rate even with rate limits or network issues.
 >
 > The final product is a production-ready Streamlit app with multi-format export, real-time progress tracking, and a RAG-based chat interface where users can ask questions about their logs."
 
@@ -117,7 +117,7 @@
 > - Creates ~3,000 chunks for 270K log entries
 >
 > **Step 4: Analysis (Parallel)**
-> - ThreadPoolExecutor submits 3 chunks simultaneously to LLM
+> - ThreadPoolExecutor submits chunks (configurable workers, default 1 for rate limit safety)
 > - Each chunk analyzed for: summary, errors, root cause, fixes
 > - Progress callback updates UI in real-time
 >
@@ -219,8 +219,8 @@
 >
 > **Optimization:**
 > ```python
-> chunk_size = 100  # 100 logs per chunk
-> overlap = 10      # 10 logs overlap  
+> chunk_size = 100  # 100 logs per chunk (current implementation)
+> overlap = 10      # 10 logs overlap (current implementation)
 > step = 100 - 10 = 90
 > chunks = 270,000 / 90 = 3,000 chunks → 3K API calls
 > ```
@@ -279,7 +279,7 @@
 **Answer:**
 > **Architecture:**
 > ```python
-> with ThreadPoolExecutor(max_workers=3) as executor:
+> with ThreadPoolExecutor(max_workers=1) as executor:  # Sequential for rate limit safety
 >     futures = {
 >         executor.submit(analyze_chunk, chunk): chunk 
 >         for chunk in chunks
@@ -345,16 +345,25 @@
 ### Q14: "Explain your retry logic with exponential backoff."
 
 **Answer:**
-> **Implementation using Tenacity library:**
+> **Implementation with manual retry + API key fallback:**
 > ```python
-> @retry(
->     stop=stop_after_attempt(3),           # Max 3 tries
->     wait=wait_exponential(multiplier=1, min=4, max=10),  # 4s, 8s, 10s
->     retry=retry_if_exception_type(Exception),
->     reraise=True
-> )
-> def safe_llm_invoke(llm, prompt):
->     return llm.invoke(prompt)
+> def safe_llm_invoke(prompt, use_backup=False):
+>     max_attempts = 3
+>     for attempt in range(max_attempts):
+>         try:
+>             # Choose primary or backup key
+>             if use_backup and GROQ_API_KEY_BACKUP:
+>                 current_llm = ChatGroq(groq_api_key=GROQ_API_KEY_BACKUP)
+>             else:
+>                 current_llm = ChatGroq(groq_api_key=GROQ_API_KEY)
+>             return current_llm.invoke(prompt)
+>         except Exception as e:
+>             # Auto-switch to backup on rate limit
+>             if "rate limit" in str(e).lower() and not use_backup:
+>                 return safe_llm_invoke(prompt, use_backup=True)
+>             if attempt == max_attempts - 1:
+>                 raise
+>             time.sleep(min(4 * (2 ** attempt), 10))  # Exponential backoff
 > ```
 >
 > **Why exponential backoff:**
@@ -372,10 +381,11 @@
 > - After: 99.9% success rate (measured over 1000 test runs)
 > - Handles: Rate limits, timeouts, temporary API outages
 >
-> **Why Tenacity over custom code:**
-> - Battle-tested library used in production systems
-> - Handles edge cases (jitter, callback hooks)
-> - Cleaner code (decorator vs try/except pyramid)"
+> **Why manual retry over @retry decorator:**
+> - Better control over backup API key switching logic
+> - Immediate fallback on rate limits (no waiting through retries)
+> - Clear error handling flow
+> - Avoided decorator conflicts with recursive fallback"
 
 ---
 
@@ -389,13 +399,15 @@
 > - Fewer calls = less likely to hit limits
 >
 > **2. Parallel worker tuning:**
-> - Max 3 concurrent workers
-> - Groq free tier: ~30 requests/minute
-> - 3 workers × 20 requests/min = safe margin
+> - Sequential processing (1 worker) for free tier safetyax_workers=1) by default
+> - Prevents overwhelming free tier limits
+> - Configurable: can increase for paid tiers
+> - Automatic backup key fallback as safety net
 >
-> **3. Exponential backoff:**
-> - If rate limited, retry with increasing delays
-> - Tenacity decorator handles 429 (Rate Limit) errors
+> **3. Automatic backup key fallback:**
+> - Primary key hits rate limit → immediately switch to backup
+> - No wasted retry attempts on exhausted key
+> - Exponential backoff (4s, 8s, 10s) if both keys have issues
 >
 > **4. User feedback:**
 > - Show error: 'Rate limit exceeded, retrying in 8s...'

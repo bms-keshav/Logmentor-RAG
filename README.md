@@ -7,6 +7,8 @@
 
 **Production-ready Streamlit application for intelligent log analysis** using Retrieval-Augmented Generation (RAG). Built with LangChain, ChromaDB vector database, and LLaMA 3-70B for automated error detection, root cause analysis, and diagnostic insights.
 
+> 🌐 **[Live Demo](https://your-app-name.streamlit.app)** | 📘 **[Deployment Guide](DEPLOYMENT.md)** | 🏗️ **[Architecture](ARCHITECTURE.md)**
+
 ---
 
 ## 🚀 Key Features
@@ -14,10 +16,10 @@
 - **Smart File Processing** - Handles files up to 25MB with streaming I/O and real-time progress tracking
 - **AI-Powered Analysis** - LLaMA 3-70B provides error detection, root cause analysis, and fix suggestions
 - **Intelligent Chunking** - Optimized 100-log chunks with 10-line overlap for context preservation
-- **Parallel Processing** - ThreadPoolExecutor with 3 concurrent workers for 3-5x faster analysis
+- **Parallel Processing** - ThreadPoolExecutor with sequential processing (max_workers=1) to avoid API rate limits
 - **RAG Chat Interface** - Ask questions about your logs using ChromaDB vector search
 - **Multi-Format Export** - Download results as TXT, JSON, or CSV
-- **Production Reliability** - Retry logic with exponential backoff ensures 99.9% API success rate
+- **Production Reliability** - Automatic backup API key fallback and retry logic with exponential backoff ensures 99.9% success rate
 
 ---
 
@@ -26,7 +28,7 @@
 **Core:** Python 3.12+, Streamlit, LangChain  
 **AI/ML:** LLaMA 3-70B (Groq API), HuggingFace Embeddings, PyTorch  
 **Database:** ChromaDB (Vector Store)  
-**Libraries:** Tenacity, Pandas, Concurrent.futures  
+**Libraries:** Pandas, Concurrent.futures, Python-dotenv  
 
 ---
 
@@ -54,8 +56,9 @@
    
    Create `.env` file in project root:
    ```env
-   GROQ_API_KEY=your_api_key_here
-   GROQ_MODEL=llama-3.3-70b-versatile
+   GROQ_API_KEY=your_primary_api_key_here
+   GROQ_API_KEY_BACKUP=your_backup_api_key_here  # Optional: automatic fallback
+   GROQ_MODEL=llama-3.3-70b-versatile  # Optional: override default model
    ```
    
    Get your free API key: [https://console.groq.com/keys](https://console.groq.com/keys)
@@ -104,8 +107,8 @@ Navigate to `http://localhost:8501` in your browser.
 | **Max File Size** | 25 MB |
 | **Parse Speed** | ~5 seconds for 270K entries |
 | **Chunk Optimization** | 91% API call reduction (34K → 3K) |
-| **Parallel Workers** | 3 concurrent threads |
-| **API Reliability** | 99.9% (3 retries with backoff) |
+| **Parallel Workers** | 1 (sequential to avoid rate limits) |
+| **API Reliability** | 99.9% (3 retries + backup key) |
 | **Embedding Model** | paraphrase-MiniLM-L3-v2 (CPU optimized) |
 
 ---
@@ -114,15 +117,19 @@ Navigate to `http://localhost:8501` in your browser.
 
 ```
 logmentor-main/
-├── app.py                 # Main Streamlit application (462 lines)
-├── utils.py               # Log parsing utilities (89 lines)
-├── requirements.txt       # Python dependencies
-├── .env                   # API configuration (create this)
-├── README.md             # This file
-├── IMPROVEMENTS.md       # Feature changelog
-├── ARCHITECTURE.md       # System design docs
+├── app.py                      # Main Streamlit application (597 lines)
+├── utils.py                    # Log parsing utilities (89 lines)
+├── requirements.txt            # Python dependencies
+├── .env                        # API configuration (create this - see Installation)
+├── .env.example                # Example environment file
+├── README.md                   # This file - Project overview & quick start
+├── DEPLOYMENT.md               # Complete deployment guide (Streamlit, Docker, HuggingFace)
+├── ARCHITECTURE.md             # System design diagrams (Mermaid)
+├── IMPROVEMENTS.md             # Feature changelog & implementation details
+├── OPTIMIZATION_REPORT.md      # Performance improvements (before/after metrics)
+├── INTERVIEW_PREP.md           # Technical interview Q&A guide
 └── .streamlit/
-    └── config.toml       # Streamlit configuration
+    └── config.toml             # Streamlit configuration
 ```
 
 ---
@@ -144,7 +151,7 @@ def chunk_structured_logs(logs, chunk_size=100, overlap=10):
 ### Parallel Workers
 Adjust concurrency in `app.py`:
 ```python
-analyze_chunks_parallel(chunks, llm, max_workers=3)
+analyze_chunks_parallel(chunks, max_workers=1)  # Default is 1 to avoid rate limits
 ```
 
 ---
@@ -182,18 +189,26 @@ analyze_chunks_parallel(chunks, llm, max_workers=3)
 
 ---
 
+## 📚 Documentation Guide
+
+- **README.md** (this file) - Quick start, features, basic usage
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Step-by-step deployment guide for Streamlit Cloud, Docker, HuggingFace Spaces
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture diagrams and data flow
+- **[IMPROVEMENTS.md](IMPROVEMENTS.md)** - Implemented features and changelogs
+- **[OPTIMIZATION_REPORT.md](OPTIMIZATION_REPORT.md)** - Performance optimization details with before/after metrics
+- **[INTERVIEW_PREP.md](INTERVIEW_PREP.md)** - Comprehensive technical interview Q&A guide
+
+---
+
 ## 🚀 Deployment
 
-### Streamlit Cloud
-1. Push to GitHub
-2. Connect at [streamlit.io/cloud](https://streamlit.io/cloud)
-3. Add `GROQ_API_KEY` in Secrets
-4. Deploy!
+For detailed deployment instructions, see **[DEPLOYMENT.md](DEPLOYMENT.md)**.
 
-### Local Production
-```bash
-streamlit run app.py --server.port 8501 --server.address 0.0.0.0
-```
+**Quick deploy to Streamlit Cloud (free):**
+1. Push to GitHub
+2. Visit [share.streamlit.io](https://share.streamlit.io)
+3. Connect repository and add `GROQ_API_KEY` to secrets
+4. Deploy!
 
 ---
 

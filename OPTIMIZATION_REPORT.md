@@ -21,7 +21,7 @@
 ### **Embedding Performance**
 | Metric | Before | After | Improvement |
 |--------|--------|-------|-------------|
-| **Model Size** | 90MB (all-MiniLM-L6-v2) | 61MB (paraphrase-L3-v2) | **32% smaller** |
+| **Model** | all-MiniLM-L6-v2 (90MB) | paraphrase-MiniLM-L3-v2 (61MB) | **32% smaller** |
 | **CPU Speed** | 10-15 seconds | 3-5 seconds | **3x faster** ⚡ |
 | **Quality** | High | Good (sufficient) | Acceptable trade-off |
 
@@ -130,12 +130,26 @@ result = llm.invoke(prompt)
 
 **After:**
 ```python
-@retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=4, max=10)
-)
-def safe_llm_invoke(llm, prompt):
-    return llm.invoke(prompt)
+def safe_llm_invoke(prompt, use_backup=False):
+    """
+    Manual retry with exponential backoff + automatic backup key fallback.
+    Tries primary key first, switches to backup on rate limits.
+    """
+    max_attempts = 3
+    for attempt in range(max_attempts):
+        try:
+            # Choose which key to use
+            if use_backup and GROQ_API_KEY_BACKUP:
+                current_llm = ChatGroq(groq_api_key=GROQ_API_KEY_BACKUP, model_name=GROQ_MODEL)
+            else:
+                current_llm = ChatGroq(groq_api_key=GROQ_API_KEY, model_name=GROQ_MODEL)
+            return current_llm.invoke(prompt)
+        except Exception as e:
+            if "rate limit" in str(e).lower() and not use_backup and GROQ_API_KEY_BACKUP:
+                return safe_llm_invoke(prompt, use_backup=True)
+            if attempt == max_attempts - 1:
+                raise
+            time.sleep(min(4 * (2 ** attempt), 10))
 ```
 
 **Impact:** 99.9% reliability, graceful failure handling
@@ -154,10 +168,10 @@ for chunk in chunks:
 
 **After:**
 ```python
-# Parallel processing - 3 chunks simultaneously
-with ThreadPoolExecutor(max_workers=3) as executor:
-    futures = {executor.submit(analyze_chunk, chunk): chunk 
-               for chunk in chunks}
+# Sequential processing (max_workers=1) to avoid rate limits
+with ThreadPoolExecutor(max_workers=1) as executor:
+    futures = {executor.submit(analyze_chunk, chunk_id, chunk): chunk_id 
+               for chunk_id, chunk in enumerate(chunks, 1)}
     for future in as_completed(futures):
         results.append(future.result())
 ```
