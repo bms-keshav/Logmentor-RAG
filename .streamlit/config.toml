@@ -4,3 +4,8 @@ backgroundColor = "#FFFFFF"
 secondaryBackgroundColor = "#F5F7FA"
 textColor = "#2C2C2C"
 font = "sans serif"
+
+[client]
+# Allow users to change theme in deployed app
+showSidebarNavigation = true
+toolbarMode = "auto"
