@@ -240,15 +240,7 @@ with st.sidebar:
     st.warning("""
     ⚠️ **Demo Mode:**  
     - Don't upload sensitive logs  
-    - Files analyzed, not stored  
-    - Logs sent to Groq API
-    """)
-    
-    st.info("""
-    💡 **Free Tier Limits:**  
-    - Daily quota: ~14,400 requests  
-    - Automatic fallback to backup key if limit hit  
-    - Sequential processing avoids most limits
+    - Files analyzed, not stored
     """)
     
     with st.expander("⚙️ Configuration"):
