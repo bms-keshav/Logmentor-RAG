@@ -12,7 +12,7 @@ from utils import structure_logs, chunk_structured_logs
 from langchain_core.documents import Document
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain.chains.retrieval_qa.base import RetrievalQA
+from langchain.chains import RetrievalQA
 from langchain_groq import ChatGroq
 import logging
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
