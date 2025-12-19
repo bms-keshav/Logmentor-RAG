@@ -12,7 +12,7 @@ from utils import structure_logs, chunk_structured_logs
 from langchain_core.documents import Document
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain.chains import RetrievalQA
+from langchain_core.prompts import PromptTemplate
 from langchain_groq import ChatGroq
 import logging
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -567,28 +567,30 @@ with tab4:
             st.info("💾 Using cached vector database (fast!)")
         
         retriever = st.session_state.vectorstore.as_retriever(search_kwargs={"k": 3})
-        qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
 
         user_query = st.text_input("💬 Ask something about the logs")
         if user_query:
             with st.spinner("💡 Thinking..."):
                 try:
-                    response = qa_chain.run(user_query)
+                    # Manual RAG implementation (instead of RetrievalQA)
+                    docs = retriever.get_relevant_documents(user_query)
+                    context = "\n\n".join([doc.page_content for doc in docs])
+                    
+                    prompt = f"""Based on the following log excerpts, answer the question.
+                    
+Log Context:
+{context}
+
+Question: {user_query}
+
+Answer:"""
+                    
+                    result = safe_llm_invoke(prompt)
+                    response = result.content
                 except Exception as e:
                     error_msg = str(e)
-                    # Try backup key if rate limit hit
-                    if ("rate limit" in error_msg.lower() or "429" in error_msg) and GROQ_API_KEY_BACKUP:
-                        st.info("Primary key hit rate limit, trying backup key...")
-                        try:
-                            backup_llm = ChatGroq(groq_api_key=GROQ_API_KEY_BACKUP, model_name=GROQ_MODEL)
-                            backup_qa_chain = RetrievalQA.from_chain_type(llm=backup_llm, retriever=retriever)
-                            response = backup_qa_chain.run(user_query)
-                        except Exception as backup_error:
-                            st.error(f"Both API keys exhausted: {backup_error}")
-                            response = None
-                    else:
-                        st.error(f"Error during retrieval/LLM call: {e}\nIf this mentions a decommissioned model, update GROQ_MODEL in .env.")
-                        response = None
+                    st.error(f"Error during retrieval/LLM call: {e}\nIf this mentions a decommissioned model, update GROQ_MODEL in .env.")
+                    response = None
 
                 if response:
                     st.markdown("🧠 **Answer**")
