@@ -237,12 +237,6 @@ with st.sidebar:
     4. Generate Summary or Ask Questions
     """)
     
-    st.warning("""
-    ⚠️ **Demo Mode:**  
-    - Don't upload sensitive logs  
-    - Files analyzed, not stored
-    """)
-    
     with st.expander("⚙️ Configuration"):
         gpu_status = "🚀 GPU Enabled" if device == "cuda" else "💻 CPU Mode (3x faster model)"
         st.code(f"""
