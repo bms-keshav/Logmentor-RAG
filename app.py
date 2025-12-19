@@ -572,8 +572,8 @@ with tab4:
         if user_query:
             with st.spinner("💡 Thinking..."):
                 try:
-                    # Manual RAG implementation (instead of RetrievalQA)
-                    docs = retriever.get_relevant_documents(user_query)
+                    # Manual RAG implementation - invoke retriever directly
+                    docs = retriever.invoke(user_query)
                     context = "\n\n".join([doc.page_content for doc in docs])
                     
                     prompt = f"""Based on the following log excerpts, answer the question.
