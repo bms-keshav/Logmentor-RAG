@@ -10,18 +10,18 @@ Note: To render Mermaid in VS Code, use the â€œMarkdown Preview Mermaid Supportâ
 
 ```mermaid
 flowchart LR
-  U[User] -->|Upload logs / Ask| UI[Streamlit UI (app.py)]
+  U[User] -->|Upload logs / Ask| UI[Streamlit UI - app.py]
 
-  UI -->|parse, normalize| LP[Log Processing (utils.py)]
+  UI -->|parse, normalize| LP[Log Processing - utils.py]
   LP --> CH[Chunking]
   CH --> DOCS[LangChain Documents]
 
-  DOCS -->|embed| EMB[HuggingFace Embeddings\n(paraphrase-MiniLM-L3-v2)]
+  DOCS -->|embed| EMB[HuggingFace Embeddings<br/>paraphrase-MiniLM-L3-v2]
   EMB -->|vectors| VS[(ChromaDB / SQLite)]
 
   %% Chunk analysis path
-  UI -->|Run Analysis| LLM[Groq Llama3-70B (ChatGroq)]
-  CH -. text chunks .-> LLM
+  UI -->|Run Analysis| LLM[Groq Llama3-70B - ChatGroq]
+  CH -.text chunks.-> LLM
   LLM -->|per-chunk insights| UI
 
   %% RAG Q&A path
