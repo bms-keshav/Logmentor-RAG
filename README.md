@@ -117,7 +117,7 @@ Navigate to `http://localhost:8501` in your browser.
 
 ```
 logmentor-main/
-├── app.py                      # Main Streamlit application (597 lines)
+├── app.py                      # Main Streamlit application (540 lines)
 ├── utils.py                    # Log parsing utilities (89 lines)
 ├── requirements.txt            # Python dependencies
 ├── .env                        # API configuration (create this - see Installation)

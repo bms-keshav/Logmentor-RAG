@@ -25,10 +25,9 @@ flowchart LR
   LLM -->|per-chunk insights| UI
 
   %% RAG Q&A path
-  UI -->|Ask| QA[RetrievalQA (LangChain)]
-  VS --> RET[Retriever]
-  RET --> QA
-  QA -->|context + query| LLM
+  UI -->|Ask| RET[Retriever]
+  VS --> RET
+  RET -->|relevant chunks| LLM
   LLM -->|answer| UI
 ```
 
@@ -51,7 +50,6 @@ flowchart TB
 
   subgraph LLM Services
     LLM[Groq Llama3-70B\n(ChatGroq)]
-    RQA[RetrievalQA (LangChain)]
   end
 
   UI --> LP --> DOCS[Chunks as Documents]
@@ -104,9 +102,9 @@ sequenceDiagram
   UI->>E: Embed chunks
   E->>V: Upsert vectors
   U->>UI: Enter query
-  UI->>R: Retrieve top-k from V
+  UI->>R: Retrieve top-k from V (invoke)
   R-->>UI: Relevant chunks
-  UI->>L: Query + retrieved context
+  UI->>L: Prompt with context via safe_llm_invoke
   L-->>UI: Answer
   UI-->>U: Display
 ```

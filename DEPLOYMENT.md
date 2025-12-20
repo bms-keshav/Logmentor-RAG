@@ -244,16 +244,10 @@ Add deployment badge:
 
 ### 3. Data Privacy
 
-**Disclaimer to add in app:**
-
-```python
-st.sidebar.warning("""
-⚠️ Demo Mode: 
-- Do not upload sensitive/proprietary logs
+**Note:** The app currently does not display privacy warnings in the sidebar, but you should inform users through other means (README, deployment description) that:
 - Files are processed but not permanently stored
-- Logs are sent to Groq API for analysis
-""")
-```
+- Log content is sent to Groq API for analysis
+- Users should not upload sensitive/proprietary logs
 
 ---
 
