@@ -60,9 +60,9 @@ flowchart TB
   LLM -->|Chunk insights| UI
 
   %% RAG Q&A path
-  UI -->|Query| RQA
-  VS -->|Retrieve top-k| RQA
-  RQA -->|Context + Query| LLM
+  UI -->|Query| VS
+  VS -->|Retrieve top-k chunks| UI
+  UI -->|Prompt with context| LLM
   LLM -->|Answer| UI
 ```
 
