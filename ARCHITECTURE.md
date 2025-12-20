@@ -37,26 +37,26 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-  U[User] --> UI[Streamlit UI (app.py)]
+  U[User] --> UI[Streamlit UI - app.py]
 
-  subgraph Ingestion & Prep
-    LP[Log Processing (utils.py)\nstructure_logs + chunk_structured_logs]
+  subgraph IngestionPrep[Ingestion and Prep]
+    LP[Log Processing - utils.py<br/>structure_logs + chunk_structured_logs]
   end
 
-  subgraph Vector Pipeline
-    EMB[HuggingFace Embeddings\n(paraphrase-MiniLM-L3-v2)]
+  subgraph VectorPipeline[Vector Pipeline]
+    EMB[HuggingFace Embeddings<br/>paraphrase-MiniLM-L3-v2]
     VS[(ChromaDB / SQLite)]
   end
 
-  subgraph LLM Services
-    LLM[Groq Llama3-70B\n(ChatGroq)]
+  subgraph LLMServices[LLM Services]
+    LLM[Groq Llama3-70B<br/>ChatGroq]
   end
 
   UI --> LP --> DOCS[Chunks as Documents]
   DOCS --> EMB --> VS
 
   %% Chunk Analysis path
-  DOCS -. text chunks .-> LLM
+  DOCS -.text chunks.-> LLM
   LLM -->|Chunk insights| UI
 
   %% RAG Q&A path
