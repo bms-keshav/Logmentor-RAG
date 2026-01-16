@@ -849,7 +849,7 @@
 >
 > **2. Documentation as I go:**
 > - Wrote docstrings for each function
-> - Created IMPROVEMENTS.md to track changes
+> - Created OPTIMIZATION_REPORT.md to track changes
 > - README updated with each major feature
 >
 > **3. Self code review:**
@@ -972,7 +972,7 @@
 > **Prevention for future:**
 > - Added comment in code: `# Clear state on file change`
 > - Created test case in mental test plan
-> - Documented in IMPROVEMENTS.md
+> - Documented in OPTIMIZATION_REPORT.md
 >
 > **Key learning:** Stateful applications need explicit state management. Streamlit's rerun model requires careful handling of session state."
 

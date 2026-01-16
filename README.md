@@ -125,8 +125,7 @@ logmentor-main/
 ├── README.md                   # This file - Project overview & quick start
 ├── DEPLOYMENT.md               # Complete deployment guide (Streamlit, Docker, HuggingFace)
 ├── ARCHITECTURE.md             # System design diagrams (Mermaid)
-├── IMPROVEMENTS.md             # Feature changelog & implementation details
-├── OPTIMIZATION_REPORT.md      # Performance improvements (before/after metrics)
+├── OPTIMIZATION_REPORT.md      # Performance improvements & features (before/after metrics)
 ├── INTERVIEW_PREP.md           # Technical interview Q&A guide
 └── .streamlit/
     └── config.toml             # Streamlit configuration
@@ -194,7 +193,6 @@ analyze_chunks_parallel(chunks, max_workers=1)  # Default is 1 to avoid rate lim
 - **README.md** (this file) - Quick start, features, basic usage
 - **[DEPLOYMENT.md](DEPLOYMENT.md)** - Step-by-step deployment guide for Streamlit Cloud, Docker, HuggingFace Spaces
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture diagrams and data flow
-- **[IMPROVEMENTS.md](IMPROVEMENTS.md)** - Implemented features and changelogs
 - **[OPTIMIZATION_REPORT.md](OPTIMIZATION_REPORT.md)** - Performance optimization details with before/after metrics
 - **[INTERVIEW_PREP.md](INTERVIEW_PREP.md)** - Comprehensive technical interview Q&A guide
 
@@ -214,7 +212,7 @@ For detailed deployment instructions, see **[DEPLOYMENT.md](DEPLOYMENT.md)**.
 
 ## 🤝 Contributing
 
-Contributions welcome! See `IMPROVEMENTS.md` for planned features.
+Contributions welcome! See `OPTIMIZATION_REPORT.md` for implemented features and optimizations.
 
 ---
 
